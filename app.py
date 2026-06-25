@@ -50,13 +50,17 @@ def generate_quiz(text_snippet, difficulty, subject, api_key):
 
 st.set_page_config(page_title="AI Tutor (UK)", page_icon="🎓")
 
-# --- Initialize Session State for Auth and History ---
+# --- Initialize Session State for Auth, History, and Billing ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 if 'user_history' not in st.session_state:
     st.session_state['user_history'] = []
 if 'quiz' not in st.session_state:
     st.session_state['quiz'] = []
+if 'quiz_count' not in st.session_state:
+    st.session_state['quiz_count'] = 0
+if 'is_premium' not in st.session_state:
+    st.session_state['is_premium'] = False
 
 # --- Authentication Flow ---
 if not st.session_state['logged_in']:
@@ -99,6 +103,15 @@ with st.sidebar:
     st.header("Tutor Settings")
     
     st.write(f"👤 **Student:** {st.session_state.get('username')}")
+    
+    if st.session_state['is_premium']:
+        st.success("⭐ Premium Member")
+    else:
+        st.warning(f"Free Quizzes Used: {st.session_state['quiz_count']} / 2")
+        if st.button("Upgrade to Premium (£5.99/mo)"):
+            st.session_state['is_premium'] = True
+            st.rerun()
+            
     if st.button("Log Out"):
         st.session_state['logged_in'] = False
         st.rerun()
@@ -117,7 +130,9 @@ with tab1:
     text_input = st.text_area(f"Paste {subject} Study Text Here (e.g., AQA, Edexcel, or CGP Revision Guide text)", height=200)
 
     if st.button("Generate Quiz", type="primary"):
-        if not api_key_input:
+        if st.session_state['quiz_count'] >= 2 and not st.session_state['is_premium']:
+            st.error("Free trial limit reached. Please upgrade to Premium in the sidebar to continue.")
+        elif not api_key_input:
             st.warning("Please enter your Gemini API Key in the sidebar.")
         elif text_input:
             with st.spinner(f"Analyzing text and building {subject} quiz..."):
@@ -126,6 +141,7 @@ with tab1:
                     st.session_state['quiz'] = quiz_data
                     st.session_state['score'] = 0
                     st.session_state['submitted'] = False
+                    st.session_state['quiz_count'] += 1
         else:
             st.warning("Please enter some text.")
 
