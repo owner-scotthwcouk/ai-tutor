@@ -108,9 +108,7 @@ with st.sidebar:
         st.success("⭐ Premium Member")
     else:
         st.warning(f"Free Quizzes Used: {st.session_state['quiz_count']} / 2")
-        if st.button("Upgrade to Premium (£5.99/mo)"):
-            st.session_state['is_premium'] = True
-            st.rerun()
+        st.link_button("Upgrade to Premium (£5.99/mo)", "https://buy.stripe.com/6oU28q51U2y1dt6dPY4ko00")
             
     if st.button("Log Out"):
         st.session_state['logged_in'] = False
