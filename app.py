@@ -3,9 +3,12 @@ from google import genai
 import os
 import json
 from supabase import create_client, Client
-from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 # --- Initialize Supabase ---
 @st.cache_resource
