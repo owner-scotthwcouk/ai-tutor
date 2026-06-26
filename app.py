@@ -3,11 +3,13 @@ from google import genai
 import os
 import json
 from supabase import create_client, Client
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Initialize Supabase ---
 @st.cache_resource
 def init_supabase():
-    # Attempt to get credentials from environment variables or Streamlit secrets
     url = os.environ.get("SUPABASE_URL") or (st.secrets["SUPABASE_URL"] if "SUPABASE_URL" in st.secrets else "")
     key = os.environ.get("SUPABASE_KEY") or (st.secrets["SUPABASE_KEY"] if "SUPABASE_KEY" in st.secrets else "")
     
@@ -16,6 +18,9 @@ def init_supabase():
     return None
 
 supabase = init_supabase()
+
+# --- Fetch Gemini API Key ---
+GEMINI_API_KEY = os.environ.get("GOOGLE_API_KEY") or (st.secrets["GOOGLE_API_KEY"] if "GOOGLE_API_KEY" in st.secrets else "")
 
 def generate_quiz(text_snippet, difficulty, subject, api_key):
     try:
@@ -77,10 +82,6 @@ with st.sidebar:
         
     st.divider()
     
-    # Global API Key Input
-    api_key_input = st.text_input("Gemini API Key", type="password", value=os.environ.get("GOOGLE_API_KEY", ""))
-    
-    st.divider()
     if st.session_state['logged_in']:
         st.write(f"👤 **User:** {st.session_state.get('current_user', 'Student')}")
         if st.button("Log Out"):
@@ -168,7 +169,6 @@ elif not st.session_state['logged_in']:
                 st.error("Cannot connect to database. Contact support.")
             else:
                 try:
-                    # Authenticate with Supabase
                     response = supabase.auth.sign_in_with_password({"email": login_email, "password": login_password})
                     st.session_state['logged_in'] = True
                     st.session_state['current_user'] = login_email
@@ -185,7 +185,6 @@ elif not st.session_state['logged_in']:
                 st.error("Cannot connect to database. Contact support.")
             elif reg_email and len(reg_password) >= 6:
                 try:
-                    # Register with Supabase
                     response = supabase.auth.sign_up({"email": reg_email, "password": reg_password})
                     st.success("Account successfully created! You can now log in using the 'Log In' tab.")
                 except Exception as e:
@@ -205,11 +204,11 @@ else:
         text_input = st.text_area(f"Paste {subject} Study Text Here", height=200)
 
         if st.button("Generate Quiz", type="primary"):
-            if not api_key_input:
-                st.warning("Please enter your Gemini API Key in the sidebar.")
+            if not GEMINI_API_KEY:
+                st.warning("API key missing. Add GOOGLE_API_KEY to your secrets or environment variables.")
             elif text_input:
                 with st.spinner(f"Analyzing text and building {subject} quiz..."):
-                    quiz_data = generate_quiz(text_input, difficulty, subject, api_key_input)
+                    quiz_data = generate_quiz(text_input, difficulty, subject, GEMINI_API_KEY)
                     if quiz_data:
                         st.session_state['current_quiz'] = quiz_data
                         st.session_state['quiz_submitted'] = False
@@ -230,7 +229,6 @@ else:
                     st.session_state['quiz_submitted'] = True
                     score = sum(1 for i, q in enumerate(st.session_state['current_quiz']) if user_answers[i] == q['answer'])
                     
-                    # Save results to Supabase Database
                     if supabase:
                         try:
                             supabase.table("quiz_results").insert({
@@ -256,7 +254,6 @@ else:
             st.warning("Connect Supabase to view your dashboard data.")
         else:
             try:
-                # Fetch user data from Supabase
                 response = supabase.table("quiz_results").select("*").eq("user_email", st.session_state['current_user']).execute()
                 data = response.data
                 
