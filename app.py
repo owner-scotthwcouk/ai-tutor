@@ -45,9 +45,7 @@ def generate_quiz(text_snippet, difficulty, subject, api_key):
 
 st.set_page_config(page_title="AI Tutor (UK)", page_icon="🎓", layout="wide")
 
-# --- Initialize Session State ---
-if 'logged_in' not in st.session_state:
-    st.session_state['logged_in'] = False
+# --- Initialize Page State ---
 if 'page' not in st.session_state:
     st.session_state['page'] = "App"
 
@@ -60,12 +58,6 @@ with st.sidebar:
     if st.button("Legal (Privacy & Terms)"):
         st.session_state['page'] = "Legal"
         st.rerun()
-    
-    st.divider()
-    if st.session_state['logged_in']:
-        if st.button("Log Out"):
-            st.session_state['logged_in'] = False
-            st.rerun()
 
 # --- Page Router ---
 if st.session_state['page'] == "Legal":
@@ -128,10 +120,7 @@ if st.session_state['page'] == "Legal":
     We reserve the right to modify these terms. Significant changes will be notified via email or platform notice. Continued use constitutes acceptance.
     """)
 
-elif not st.session_state['logged_in']:
-    st.title("🎓 Welcome to AI Tutor")
-    st.write("Please log in to continue.")
-
 else:
     st.title("🎓 AI Tutor: GCSE & A-Level Practice")
-    st.write("Welcome back! Select your subject and paste your text below to get started.")
+    st.write("Welcome! Select your subject and paste your text below to get started.")
+    # Application content starts here
