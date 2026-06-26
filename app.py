@@ -48,6 +48,10 @@ st.set_page_config(page_title="AI Tutor (UK)", page_icon="🎓", layout="wide")
 # --- Initialize Page State ---
 if 'page' not in st.session_state:
     st.session_state['page'] = "App"
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
+if 'users_db' not in st.session_state:
+    st.session_state['users_db'] = {}
 
 # --- Sidebar Navigation ---
 with st.sidebar:
@@ -58,6 +62,13 @@ with st.sidebar:
     if st.button("Legal (Privacy & Terms)"):
         st.session_state['page'] = "Legal"
         st.rerun()
+        
+    st.divider()
+    if st.session_state['logged_in']:
+        st.write(f"👤 **User:** {st.session_state.get('current_user', 'Student')}")
+        if st.button("Log Out"):
+            st.session_state['logged_in'] = False
+            st.rerun()
 
 # --- Page Router ---
 if st.session_state['page'] == "Legal":
@@ -120,7 +131,38 @@ if st.session_state['page'] == "Legal":
     We reserve the right to modify these terms. Significant changes will be notified via email or platform notice. Continued use constitutes acceptance.
     """)
 
+elif not st.session_state['logged_in']:
+    st.title("🎓 Welcome to AI Tutor")
+    st.write("Please log in or register to access the platform.")
+    
+    tab1, tab2 = st.tabs(["Log In", "Register"])
+    
+    with tab1:
+        st.subheader("Student Log In")
+        login_username = st.text_input("Username", key="login_user")
+        login_password = st.text_input("Password", type="password", key="login_pass")
+        if st.button("Log In"):
+            if login_username in st.session_state['users_db'] and st.session_state['users_db'][login_username] == login_password:
+                st.session_state['logged_in'] = True
+                st.session_state['current_user'] = login_username
+                st.rerun()
+            else:
+                st.error("Invalid username or password. If you don't have an account, please register.")
+                
+    with tab2:
+        st.subheader("Create a New Account")
+        reg_username = st.text_input("Choose a Username", key="reg_user")
+        reg_password = st.text_input("Choose a Password", type="password", key="reg_pass")
+        if st.button("Register"):
+            if reg_username in st.session_state['users_db']:
+                st.error("Username already exists. Please choose a different one.")
+            elif reg_username and reg_password:
+                st.session_state['users_db'][reg_username] = reg_password
+                st.success("Account successfully created! You can now log in using the 'Log In' tab.")
+            else:
+                st.warning("Please provide both a username and password to register.")
+
 else:
     st.title("🎓 AI Tutor: GCSE & A-Level Practice")
-    st.write("Welcome! Select your subject and paste your text below to get started.")
+    st.write(f"Welcome back, **{st.session_state.get('current_user', 'Student')}**! Select your subject and paste your text below to get started.")
     # Application content starts here
