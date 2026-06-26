@@ -29,7 +29,6 @@ def generate_quiz(text_snippet, difficulty, subject, api_key):
             contents=prompt,
         )
         
-        # Extract the JSON array from the response safely
         raw_text = response.text.strip()
         start_index = raw_text.find('[')
         end_index = raw_text.rfind(']') + 1
@@ -41,153 +40,74 @@ def generate_quiz(text_snippet, difficulty, subject, api_key):
             return json.loads(raw_text)
             
     except Exception as e:
-        error_message = str(e)
-        if "403" in error_message or "PERMISSION_DENIED" in error_message:
-            st.error("Error: Your API key was denied access. Please create a new API key at Google AI Studio.")
-        else:
-            st.error(f"Failed to get AI response. Error: {e}")
+        st.error(f"Failed to get AI response. Error: {e}")
         return []
 
-st.set_page_config(page_title="AI Tutor (UK)", page_icon="🎓")
+st.set_page_config(page_title="AI Tutor (UK)", page_icon="🎓", layout="wide")
 
-# --- Initialize Session State for Auth, History, and Billing ---
+# --- Initialize Session State ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
-if 'user_history' not in st.session_state:
-    st.session_state['user_history'] = []
-if 'quiz' not in st.session_state:
-    st.session_state['quiz'] = []
-if 'quiz_count' not in st.session_state:
-    st.session_state['quiz_count'] = 0
-if 'is_premium' not in st.session_state:
-    st.session_state['is_premium'] = False
+if 'page' not in st.session_state:
+    st.session_state['page'] = "App"
 
-# --- Authentication Flow ---
-if not st.session_state['logged_in']:
-    st.title("🎓 Welcome to AI Tutor")
-    st.write("Your personal AI tutor for UK GCSE & A-Level subjects.")
-    
-    st.divider()
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.subheader("Student Login")
-        username = st.text_input("Username (Student Name)")
-        password = st.text_input("Password", type="password")
-        
-        btn_col1, btn_col2 = st.columns(2)
-        with btn_col1:
-            if st.button("Log In", use_container_width=True):
-                if username and password:
-                    st.session_state['logged_in'] = True
-                    st.session_state['username'] = username
-                    st.rerun()
-                else:
-                    st.warning("Please enter username and password.")
-        with btn_col2:
-            if st.button("Create Account", type="primary", use_container_width=True):
-                if username and password:
-                    st.session_state['logged_in'] = True
-                    st.session_state['username'] = username
-                    st.success("Account created!")
-                    st.rerun()
-                else:
-                    st.warning("Please enter username and password.")
-    st.stop() 
-
-# --- Main App (Only visible if logged in) ---
-st.title("🎓 AI Tutor: GCSE & A-Level Practice")
-st.write(f"Welcome back, **{st.session_state.get('username', 'Student')}**! Upload your syllabus text to generate today's interactive quiz.")
-
-# Sidebar for settings
+# --- Sidebar Navigation ---
 with st.sidebar:
-    st.header("Tutor Settings")
-    
-    st.write(f"👤 **Student:** {st.session_state.get('username')}")
-    
-    if st.session_state['is_premium']:
-        st.success("⭐ Premium Member")
-    else:
-        st.warning(f"Free Quizzes Used: {st.session_state['quiz_count']} / 2")
-        st.link_button("Upgrade to Premium (£5.99/mo)", "https://buy.stripe.com/6oU28q51U2y1dt6dPY4ko00")
-            
-    if st.button("Log Out"):
-        st.session_state['logged_in'] = False
+    st.header("Navigation")
+    if st.button("Main App"):
+        st.session_state['page'] = "App"
         st.rerun()
-        
-    st.divider()
-    api_key_input = st.text_input("Gemini API Key", type="password", value=os.environ.get("GOOGLE_API_KEY", ""))
+    if st.button("Legal (Privacy & Terms)"):
+        st.session_state['page'] = "Legal"
+        st.rerun()
     
     st.divider()
-    subject = st.selectbox("Select Subject", ["Biology", "Chemistry", "Physics", "English", "Maths", "Technology"])
-    difficulty = st.select_slider("Question Difficulty", options=["Easy (Recall)", "Medium (Comprehension)", "Hard (Application)"])
+    if st.session_state['logged_in']:
+        if st.button("Log Out"):
+            st.session_state['logged_in'] = False
+            st.rerun()
 
-# --- Tabs for App and Dashboard ---
-tab1, tab2 = st.tabs(["📚 Practice Area", "📈 My Progress Dashboard"])
+# --- Page Router ---
+if st.session_state['page'] == "Legal":
+    st.title("⚖️ Legal Information")
+    
+    st.subheader("Privacy Policy (GDPR)")
+    st.markdown("""
+    **Company:** SHW Technical Services (Operating Edumaxim and AI Study Buddy)  
+    **Last Updated:** June 2026
 
-with tab1:
-    text_input = st.text_area(f"Paste {subject} Study Text Here (e.g., AQA, Edexcel, or CGP Revision Guide text)", height=200)
+    At SHW Technical Services ("we," "us," or "our"), we are committed to protecting your privacy and ensuring the security of your personal data across all our platforms, including Edumaxim and AI Study Buddy. This policy explains how we collect, use, and protect your information in compliance with the General Data Protection Regulation (GDPR).
+    
+    1. Data We Collect
+    - A. General Account & Billing Data: Identity, Contact, Financial, and Usage Data.
+    - B. Edumaxim-Specific Data: Tutor Payout Data, Booking Data.
+    - C. AI Study Buddy-Specific Data: Academic & Interaction Data (Chat logs, uploads, learning patterns).
+    
+    2. How We Use Your Data: To provide services, process payments, improve platforms, communicate with users, and ensure security.
+    
+    3. Data Sharing: Internal sharing between platforms and with trusted third-party processors (e.g., Stripe, cloud providers).
+    
+    4. Your Rights (GDPR): Access, Rectification, Erasure, Restriction & Objection, Data Portability. Contact scott@scott-hw.online.
+    
+    5. Data Security: Robust technical and organizational measures implemented.
+    """)
+    
+    st.subheader("Terms of Service")
+    st.markdown("""
+    **Last Updated:** June 2026
 
-    if st.button("Generate Quiz", type="primary"):
-        if st.session_state['quiz_count'] >= 2 and not st.session_state['is_premium']:
-            st.error("Free trial limit reached. Please upgrade to Premium in the sidebar to continue.")
-        elif not api_key_input:
-            st.warning("Please enter your Gemini API Key in the sidebar.")
-        elif text_input:
-            with st.spinner(f"Analyzing text and building {subject} quiz..."):
-                quiz_data = generate_quiz(text_input, difficulty, subject, api_key_input)
-                if quiz_data:
-                    st.session_state['quiz'] = quiz_data
-                    st.session_state['score'] = 0
-                    st.session_state['submitted'] = False
-                    st.session_state['quiz_count'] += 1
-        else:
-            st.warning("Please enter some text.")
+    1. **Acceptance of Terms:** By accessing and using SHW Technical Services, you agree to these terms.
+    2. **General User Conduct:** Do not harass, use for illegal purposes, or attempt to hack the platforms.
+    3. **Edumaxim:** Marketplace terms apply; platform circumvention is prohibited.
+    4. **AI Study Buddy:** Subscription-based. Users agree to use as a learning aid; not for academic dishonesty. Note: AI models may hallucinate; verify information.
+    5. **Limitation of Liability:** SHW Technical Services is not liable for indirect or consequential damages.
+    6. **Modifications:** We may modify these terms at any time with notice.
+    """)
 
-    if st.session_state['quiz']:
-        st.subheader("Today's Practice Test")
-        with st.form("quiz_form"):
-            user_answers = {}
-            for i, q in enumerate(st.session_state['quiz']):
-                st.write(f"**{i+1}. {q['question']}**")
-                user_answers[i] = st.radio("Select an answer:", q['options'], key=f"q_{i}")
-            
-            submitted = st.form_submit_button("Submit Answers")
-            
-            if submitted:
-                st.session_state['submitted'] = True
-                score = 0
-                for i, q in enumerate(st.session_state['quiz']):
-                    if user_answers[i] == q['answer']:
-                        score += 1
-                st.session_state['score'] = score
-                
-                st.session_state['user_history'].append({
-                    "subject": subject,
-                    "score": score,
-                    "total": len(st.session_state['quiz'])
-                })
+elif not st.session_state['logged_in']:
+    st.title("🎓 Welcome to AI Tutor")
+    st.write("Please log in to continue.")
 
-        if st.session_state.get('submitted'):
-            st.success(f"Score: {st.session_state['score']} / {len(st.session_state['quiz'])}")
-            for i, q in enumerate(st.session_state['quiz']):
-                if user_answers[i] == q['answer']:
-                    st.success(f"**{i+1}. Correct:** {q['rationale']}")
-                else:
-                    st.error(f"**{i+1}. Incorrect:** The answer is {q['answer']}. {q['rationale']}")
-
-with tab2:
-    st.subheader("Progress Log")
-    if not st.session_state['user_history']:
-        st.write("No quizzes taken yet.")
-    else:
-        total_quizzes = len(st.session_state['user_history'])
-        total_correct = sum([entry['score'] for entry in st.session_state['user_history']])
-        total_questions = sum([entry['total'] for entry in st.session_state['user_history']])
-        accuracy = (total_correct / total_questions) * 100 if total_questions > 0 else 0
-        
-        col1, col2 = st.columns(2)
-        col1.metric("Quizzes Completed", total_quizzes)
-        col2.metric("Overall Accuracy", f"{accuracy:.1f}%")
-        
-        for i, entry in enumerate(reversed(st.session_state['user_history'])):
-            st.write(f"- **{entry['subject']}**: {entry['score']}/{entry['total']}")
+else:
+    st.title("🎓 AI Tutor: GCSE & A-Level Practice")
+    st.write("Welcome back! Select your subject and paste your text below to get started.")
