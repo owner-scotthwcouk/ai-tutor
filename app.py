@@ -144,8 +144,8 @@ else:
             * ✅ Priority curriculum updates
             """)
             
-            # Note: Replace this # with your actual Stripe Payment Link!
-            stripe_link = "https://buy.stripe.com/test_your_link_here" 
+           
+            stripe_link = "https://buy.stripe.com/6oU28q51U2y1dt6dPY4ko00" 
             st.markdown(f'<a href="{stripe_link}" target="_blank"><button style="background-color:#635BFF;color:white;padding:12px 24px;border:none;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;">Subscribe Now ($15/mo)</button></a>', unsafe_allow_html=True)
 
         else:
