@@ -2,6 +2,20 @@ import streamlit as st
 from google import genai
 import os
 import json
+from supabase import create_client, Client
+
+# --- Initialize Supabase ---
+@st.cache_resource
+def init_supabase():
+    # Attempt to get credentials from environment variables or Streamlit secrets
+    url = os.environ.get("SUPABASE_URL") or (st.secrets["SUPABASE_URL"] if "SUPABASE_URL" in st.secrets else "")
+    key = os.environ.get("SUPABASE_KEY") or (st.secrets["SUPABASE_KEY"] if "SUPABASE_KEY" in st.secrets else "")
+    
+    if url and key:
+        return create_client(url, key)
+    return None
+
+supabase = init_supabase()
 
 def generate_quiz(text_snippet, difficulty, subject, api_key):
     try:
@@ -50,13 +64,11 @@ if 'page' not in st.session_state:
     st.session_state['page'] = "App"
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
-if 'users_db' not in st.session_state:
-    st.session_state['users_db'] = {}
 
 # --- Sidebar Navigation ---
 with st.sidebar:
     st.header("Navigation")
-    if st.button("Main App"):
+    if st.button("Main App & Dashboard"):
         st.session_state['page'] = "App"
         st.rerun()
     if st.button("Legal (Privacy & Terms)"):
@@ -64,9 +76,16 @@ with st.sidebar:
         st.rerun()
         
     st.divider()
+    
+    # Global API Key Input
+    api_key_input = st.text_input("Gemini API Key", type="password", value=os.environ.get("GOOGLE_API_KEY", ""))
+    
+    st.divider()
     if st.session_state['logged_in']:
         st.write(f"👤 **User:** {st.session_state.get('current_user', 'Student')}")
         if st.button("Log Out"):
+            if supabase:
+                supabase.auth.sign_out()
             st.session_state['logged_in'] = False
             st.rerun()
 
@@ -135,34 +154,127 @@ elif not st.session_state['logged_in']:
     st.title("🎓 Welcome to AI Tutor")
     st.write("Please log in or register to access the platform.")
     
+    if not supabase:
+        st.warning("⚠️ Supabase is not connected. Please add SUPABASE_URL and SUPABASE_KEY to your environment variables or Streamlit secrets.")
+    
     tab1, tab2 = st.tabs(["Log In", "Register"])
     
     with tab1:
         st.subheader("Student Log In")
-        login_username = st.text_input("Username", key="login_user")
+        login_email = st.text_input("Email", key="login_user")
         login_password = st.text_input("Password", type="password", key="login_pass")
         if st.button("Log In"):
-            if login_username in st.session_state['users_db'] and st.session_state['users_db'][login_username] == login_password:
-                st.session_state['logged_in'] = True
-                st.session_state['current_user'] = login_username
-                st.rerun()
+            if not supabase:
+                st.error("Cannot connect to database. Contact support.")
             else:
-                st.error("Invalid username or password. If you don't have an account, please register.")
+                try:
+                    # Authenticate with Supabase
+                    response = supabase.auth.sign_in_with_password({"email": login_email, "password": login_password})
+                    st.session_state['logged_in'] = True
+                    st.session_state['current_user'] = login_email
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Login failed. Please check your credentials or register.")
                 
     with tab2:
         st.subheader("Create a New Account")
-        reg_username = st.text_input("Choose a Username", key="reg_user")
-        reg_password = st.text_input("Choose a Password", type="password", key="reg_pass")
+        reg_email = st.text_input("Email Address", key="reg_user")
+        reg_password = st.text_input("Choose a Password (min 6 chars)", type="password", key="reg_pass")
         if st.button("Register"):
-            if reg_username in st.session_state['users_db']:
-                st.error("Username already exists. Please choose a different one.")
-            elif reg_username and reg_password:
-                st.session_state['users_db'][reg_username] = reg_password
-                st.success("Account successfully created! You can now log in using the 'Log In' tab.")
+            if not supabase:
+                st.error("Cannot connect to database. Contact support.")
+            elif reg_email and len(reg_password) >= 6:
+                try:
+                    # Register with Supabase
+                    response = supabase.auth.sign_up({"email": reg_email, "password": reg_password})
+                    st.success("Account successfully created! You can now log in using the 'Log In' tab.")
+                except Exception as e:
+                    st.error(f"Registration failed: {e}")
             else:
-                st.warning("Please provide both a username and password to register.")
+                st.warning("Please provide a valid email and a password of at least 6 characters.")
 
 else:
-    st.title("🎓 AI Tutor: GCSE & A-Level Practice")
-    st.write(f"Welcome back, **{st.session_state.get('current_user', 'Student')}**! Select your subject and paste your text below to get started.")
-    # Application content starts here
+    st.title("🎓 AI Tutor: Practice & Dashboard")
+    st.write(f"Welcome back, **{st.session_state.get('current_user', 'Student')}**!")
+    
+    app_tab, dash_tab = st.tabs(["📚 Practice Area", "📈 Supabase Dashboard"])
+    
+    with app_tab:
+        subject = st.selectbox("Select Subject", ["Biology", "Chemistry", "Physics", "English", "Maths", "Technology"])
+        difficulty = st.select_slider("Question Difficulty", options=["Easy", "Medium", "Hard"])
+        text_input = st.text_area(f"Paste {subject} Study Text Here", height=200)
+
+        if st.button("Generate Quiz", type="primary"):
+            if not api_key_input:
+                st.warning("Please enter your Gemini API Key in the sidebar.")
+            elif text_input:
+                with st.spinner(f"Analyzing text and building {subject} quiz..."):
+                    quiz_data = generate_quiz(text_input, difficulty, subject, api_key_input)
+                    if quiz_data:
+                        st.session_state['current_quiz'] = quiz_data
+                        st.session_state['quiz_submitted'] = False
+            else:
+                st.warning("Please enter some text.")
+
+        if 'current_quiz' in st.session_state:
+            st.subheader("Today's Practice Test")
+            with st.form("quiz_form"):
+                user_answers = {}
+                for i, q in enumerate(st.session_state['current_quiz']):
+                    st.write(f"**{i+1}. {q['question']}**")
+                    user_answers[i] = st.radio("Select an answer:", q['options'], key=f"q_{i}")
+                
+                submitted = st.form_submit_button("Submit Answers")
+                
+                if submitted:
+                    st.session_state['quiz_submitted'] = True
+                    score = sum(1 for i, q in enumerate(st.session_state['current_quiz']) if user_answers[i] == q['answer'])
+                    
+                    # Save results to Supabase Database
+                    if supabase:
+                        try:
+                            supabase.table("quiz_results").insert({
+                                "user_email": st.session_state['current_user'],
+                                "subject": subject,
+                                "score": score,
+                                "total": len(st.session_state['current_quiz'])
+                            }).execute()
+                            st.success("Score successfully saved to your Supabase Dashboard!")
+                        except Exception as e:
+                            st.error(f"Could not save score to Supabase. Error: {e}")
+
+            if st.session_state.get('quiz_submitted'):
+                for i, q in enumerate(st.session_state['current_quiz']):
+                    if user_answers[i] == q['answer']:
+                        st.success(f"**{i+1}. Correct:** {q['rationale']}")
+                    else:
+                        st.error(f"**{i+1}. Incorrect:** The answer is {q['answer']}. {q['rationale']}")
+
+    with dash_tab:
+        st.subheader("Your Progress Tracker")
+        if not supabase:
+            st.warning("Connect Supabase to view your dashboard data.")
+        else:
+            try:
+                # Fetch user data from Supabase
+                response = supabase.table("quiz_results").select("*").eq("user_email", st.session_state['current_user']).execute()
+                data = response.data
+                
+                if data:
+                    total_quizzes = len(data)
+                    total_correct = sum(row['score'] for row in data)
+                    total_questions = sum(row['total'] for row in data)
+                    accuracy = (total_correct / total_questions) * 100 if total_questions > 0 else 0
+                    
+                    col1, col2 = st.columns(2)
+                    col1.metric("Quizzes Completed", total_quizzes)
+                    col2.metric("Overall Accuracy", f"{accuracy:.1f}%")
+                    
+                    st.divider()
+                    st.write("### Recent Quizzes")
+                    for row in reversed(data):
+                        st.write(f"- **{row['subject']}**: Scored {row['score']}/{row['total']}")
+                else:
+                    st.info("No quizzes completed yet. Take your first practice test to populate your dashboard!")
+            except Exception as e:
+                st.error("Error fetching dashboard data from Supabase. Make sure the 'quiz_results' table exists.")
